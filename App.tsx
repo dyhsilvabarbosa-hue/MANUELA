@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
   ArrowLeft, MessageCircle, Info, Eye, CheckCircle2, Cloud, RefreshCw, 
@@ -36,7 +35,6 @@ const App: React.FC = () => {
   const [connStatus, setConnStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const scrollRef = useRef<HTMLDivElement>(null);
-  // FIX: `setTimeout` in the browser returns a `number`, not `NodeJS.Timeout`.
   const debounceTimeout = useRef<number | null>(null);
   
   const [recessRange, setRecessRange] = useState<{start: string, end: string}>(() => {
@@ -158,7 +156,7 @@ useEffect(() => {
     if (isAdminAuthenticated) {
         if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
         setSaveStatus('idle');
-        debounceTimeout.current = setTimeout(() => {
+        debounceTimeout.current = window.setTimeout(() => {
             saveMasterConfig();
         }, 1500);
     }
@@ -394,7 +392,7 @@ useEffect(() => {
           <button 
             onContextMenu={(e) => { e.preventDefault(); setStep(Step.Admin); }}
             onTouchStart={(e) => {
-              const timer = setTimeout(() => setStep(Step.Admin), 2000);
+              const timer = window.setTimeout(() => setStep(Step.Admin), 2000);
               e.currentTarget.addEventListener('touchend', () => clearTimeout(timer), { once: true });
             }}
             className="mb-4 w-16 h-16 md:w-20 md:h-20 bg-white rounded-full flex items-center justify-center shadow-xl border-2 border-[#E6B8B1] overflow-hidden p-1 hover:scale-105 transition-transform"
