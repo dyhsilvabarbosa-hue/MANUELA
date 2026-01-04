@@ -42,7 +42,7 @@ export const SERVICES: Service[] = [
 ];
 
 export const BUSINESS_HOURS = {
-  wed_fri: { start: '14:00', end: '19:30' },
+  tue_fri: { start: '14:00', end: '19:30' },
   sat: { start: '08:00', end: '12:00' },
 };
 

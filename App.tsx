@@ -204,7 +204,7 @@ const App: React.FC = () => {
     const dateParts = dateString.split('-').map(Number);
     const date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
     const dayOfWeek = date.getDay(); 
-    return dayOfWeek >= 3 && dayOfWeek <= 6; // Quarta a Sábado
+    return dayOfWeek >= 2 && dayOfWeek <= 6; // Terça a Sábado
   };
 
   const allTimeSlots = useMemo(() => {
@@ -212,8 +212,8 @@ const App: React.FC = () => {
     const dateParts = booking.date.split('-').map(Number);
     const date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
     const dayOfWeek = date.getDay();
-    const { wed_fri, sat } = BUSINESS_HOURS;
-    const { start, end } = (dayOfWeek === 6) ? sat : wed_fri;
+    const { tue_fri, sat } = BUSINESS_HOURS;
+    const { start, end } = (dayOfWeek === 6) ? sat : tue_fri;
     const slots = [];
     const [startH, startM] = start.split(':').map(Number);
     const [endH, endM] = end.split(':').map(Number);
@@ -483,7 +483,7 @@ const App: React.FC = () => {
                        )}
                        {!isRecessDate(booking.date) && (
                          <div className="mt-3 text-[10px] text-rose-600 font-medium space-y-1">
-                            <p>Qua a Sex: 14h às 19:30</p>
+                            <p>Ter a Sex: 14h às 19:30</p>
                             <p>Sábado: 8h às 12h</p>
                          </div>
                        )}
