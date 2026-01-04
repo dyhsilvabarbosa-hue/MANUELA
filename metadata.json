@@ -1,5 +1,7 @@
 {
-  "name": " Espaço D'Manuela - Agendamentos Premium",
+  "name": "Espaço D'Manuela - Agendamentos Premium",
   "description": "Sistema de agendamento online personalizado para o Espaço D'Manuela. Escolha seus procedimentos de cílios, sobrancelhas e depilação, visualize as técnicas e confirme via WhatsApp.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "camera"
+  ]
 }

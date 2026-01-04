@@ -1,0 +1,11 @@
+
+/* Arquivo base para satisfazer dependências do servidor e permitir customizações futuras */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
