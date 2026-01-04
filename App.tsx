@@ -131,29 +131,49 @@ const App: React.FC = () => {
   const saveMasterConfig = useCallback(async () => {
     if (!webhookUrl) {
         setSaveStatus('error');
+        setTimeout(() => setSaveStatus('idle'), 2000);
         return;
     }
     setSaveStatus('saving');
     try {
-        await fetch(webhookUrl, {
+        const response = await fetch(webhookUrl, {
             method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 action: 'saveConfig',
                 config: { services, notice, recessRange }
             })
         });
-        setSaveStatus('saved');
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.status === 'success') {
+                setSaveStatus('saved');
+            } else {
+                throw new Error(data.message || 'Server returned an error on save');
+            }
+        } else {
+            throw new Error(`Request to save config failed with status ${response.status}`);
+        }
     } catch (error) {
+        console.error("Falha ao salvar configuração mestre:", error);
         setSaveStatus('error');
     } finally {
         setTimeout(() => setSaveStatus('idle'), 2000);
     }
-}, [services, notice, recessRange, webhookUrl]);
+  }, [services, notice, recessRange, webhookUrl]);
 
-useEffect(() => {
+  useEffect(() => {
     if (isAdminAuthenticated) {
+        // Persiste as alterações no armazenamento local imediatamente para uma melhor experiência do usuário.
+        try {
+            localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(services));
+            localStorage.setItem(STORAGE_KEYS.NOTICE, JSON.stringify(notice));
+            localStorage.setItem(STORAGE_KEYS.RECESS, JSON.stringify(recessRange));
+        } catch(e) {
+            console.error("Não foi possível salvar as alterações localmente.", e);
+        }
+
+        // Aguarda um momento após a última alteração para salvar no servidor, evitando requisições excessivas.
         if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
         setSaveStatus('idle');
         debounceTimeout.current = window.setTimeout(() => {
@@ -163,7 +183,7 @@ useEffect(() => {
     return () => {
         if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
     };
-}, [services, notice, recessRange, isAdminAuthenticated, saveMasterConfig]);
+  }, [services, notice, recessRange, isAdminAuthenticated, saveMasterConfig]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
