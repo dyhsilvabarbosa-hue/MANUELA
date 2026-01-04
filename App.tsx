@@ -1,10 +1,11 @@
 
+
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { 
-  ArrowLeft, MessageCircle, Info, Eye, CheckCircle2, Sparkles, RefreshCw, 
+  ArrowLeft, MessageCircle, Info, Eye, CheckCircle2, Cloud, RefreshCw, 
   Plus, Check, Trash2, CalendarX, Settings, 
   Link as LinkIcon, Send, CalendarDays, BellRing, ToggleLeft, ToggleRight, 
-  Lock, ShoppingBag, Clock, Heart, Edit3, LayoutList, RotateCcw, Calendar
+  Lock, ShoppingBag, Clock, Heart, Edit3, LayoutList, RotateCcw, Calendar, CloudOff
 } from 'lucide-react';
 import { SERVICES as INITIAL_SERVICES, BUSINESS_HOURS, WHATSAPP_NUMBER, CARD_SURCHARGE } from './constants';
 import { Service, BookingState, Step, PaymentMethod, AppNotice } from './types';
@@ -26,12 +27,17 @@ const STORAGE_KEYS = {
 const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isConfigLoading, setIsConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState(false);
   const [step, setStep] = useState<Step>(Step.ServiceSelection);
   const [adminTab, setAdminTab] = useState<'config' | 'editor'>('config');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [googleEvents, setGoogleEvents] = useState<BookedSlot[]>([]);
   const [connStatus, setConnStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const scrollRef = useRef<HTMLDivElement>(null);
+  // FIX: `setTimeout` in the browser returns a `number`, not `NodeJS.Timeout`.
+  const debounceTimeout = useRef<number | null>(null);
   
   const [recessRange, setRecessRange] = useState<{start: string, end: string}>(() => {
     try {
@@ -86,6 +92,81 @@ const App: React.FC = () => {
     paymentMethod: null,
   });
 
+  const fetchMasterConfig = useCallback(async () => {
+    if (!webhookUrl) {
+      setIsConfigLoading(false);
+      return;
+    }
+    setIsConfigLoading(true);
+    setConfigError(false);
+    try {
+      const response = await fetch(`${webhookUrl}?action=getConfig`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data.services && data.services.length > 0) {
+          setServices(data.services);
+          localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(data.services));
+        }
+        if (data.notice) {
+          setNotice(data.notice);
+          localStorage.setItem(STORAGE_KEYS.NOTICE, JSON.stringify(data.notice));
+        }
+        if (data.recessRange) {
+          setRecessRange(data.recessRange);
+          localStorage.setItem(STORAGE_KEYS.RECESS, JSON.stringify(data.recessRange));
+        }
+      } else {
+         setConfigError(true);
+      }
+    } catch (error) {
+       setConfigError(true);
+      console.warn("Falha ao buscar configuração central. Usando dados locais.");
+    } finally {
+      setIsConfigLoading(false);
+    }
+  }, [webhookUrl]);
+
+  useEffect(() => {
+    fetchMasterConfig();
+  }, [fetchMasterConfig]);
+  
+  const saveMasterConfig = useCallback(async () => {
+    if (!webhookUrl) {
+        setSaveStatus('error');
+        return;
+    }
+    setSaveStatus('saving');
+    try {
+        await fetch(webhookUrl, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                action: 'saveConfig',
+                config: { services, notice, recessRange }
+            })
+        });
+        setSaveStatus('saved');
+    } catch (error) {
+        setSaveStatus('error');
+    } finally {
+        setTimeout(() => setSaveStatus('idle'), 2000);
+    }
+}, [services, notice, recessRange, webhookUrl]);
+
+useEffect(() => {
+    if (isAdminAuthenticated) {
+        if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+        setSaveStatus('idle');
+        debounceTimeout.current = setTimeout(() => {
+            saveMasterConfig();
+        }, 1500);
+    }
+    return () => {
+        if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
+    };
+}, [services, notice, recessRange, isAdminAuthenticated, saveMasterConfig]);
+
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
@@ -94,13 +175,10 @@ const App: React.FC = () => {
     try {
       localStorage.setItem(STORAGE_KEYS.BOOKINGS, JSON.stringify(bookedSlots));
       localStorage.setItem(STORAGE_KEYS.WEBHOOK, webhookUrl);
-      localStorage.setItem(STORAGE_KEYS.NOTICE, JSON.stringify(notice));
-      localStorage.setItem(STORAGE_KEYS.SERVICES, JSON.stringify(services));
-      localStorage.setItem(STORAGE_KEYS.RECESS, JSON.stringify(recessRange));
     } catch (e) {
       console.error("Erro ao salvar dados no LocalStorage");
     }
-  }, [bookedSlots, webhookUrl, notice, services, recessRange]);
+  }, [bookedSlots, webhookUrl]);
 
   const handleAdminAuth = (e: React.FormEvent) => {
     e.preventDefault();
@@ -158,10 +236,13 @@ const App: React.FC = () => {
         mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          summary: `D'Manuela: ${booking.name}`,
-          description: description,
-          start: startDateTime,
-          duration: totalDuration
+          action: 'createEvent',
+          payload: {
+            summary: `D'Manuela: ${booking.name}`,
+            description: description,
+            start: startDateTime,
+            duration: totalDuration
+          }
         })
       });
       return true;
@@ -288,17 +369,16 @@ const App: React.FC = () => {
   const resetServicesToDefault = () => {
     if (window.confirm("Isso apagará todas as suas edições e voltará ao catálogo original. Continuar?")) {
        setServices(INITIAL_SERVICES);
-       localStorage.removeItem(STORAGE_KEYS.SERVICES);
     }
   };
 
   return (
     <div className="min-h-screen bg-[#faf7f7] flex flex-col items-center px-2 sm:px-4 py-4 md:py-10 pb-24 relative overflow-x-hidden container-main">
-      {(isLoading || isSyncing) && (
+      {(isLoading || isSyncing || isConfigLoading) && (
         <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-[#faf7f7]/95 backdrop-blur-md transition-opacity duration-300">
            <div className="w-12 h-12 md:w-16 md:h-16 border-4 border-[#E6B8B1] border-t-transparent rounded-full animate-spin"></div>
            <p className="mt-6 font-bold text-[#8c6b65] uppercase tracking-widest text-[10px] animate-pulse px-6 text-center">
-              {isSyncing ? 'Sincronizando Agenda...' : 'Espaço D\'Manuela'}
+              {isSyncing ? 'Sincronizando Agenda...' : isConfigLoading ? 'Carregando Dados...' : 'Espaço D\'Manuela'}
            </p>
         </div>
       )}
@@ -367,13 +447,22 @@ const App: React.FC = () => {
                 {step === Step.Confirmation && 'Confirmar'}
                 {step === Step.Admin && (isAdminAuthenticated ? 'Painel de Gestão' : 'Área Restrita')}
             </h2>
-            <div className="w-10"></div>
+             <div className="w-10">
+              {step === Step.Admin && isAdminAuthenticated && (
+                <div className="flex items-center gap-1">
+                  {saveStatus === 'saving' && <RefreshCw size={14} className="text-[#E6B8B1] animate-spin" />}
+                  {saveStatus === 'saved' && <Cloud size={14} className="text-green-500" />}
+                  {saveStatus === 'error' && <CloudOff size={14} className="text-rose-500" />}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         <div ref={scrollRef} className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto custom-scrollbar relative">
           {step === Step.ServiceSelection && (
             <div className="space-y-6 sm:space-y-8 pb-24">
+              {configError && <p className="text-center text-rose-500 text-xs font-bold p-4 bg-rose-50 rounded-lg">Falha ao carregar catálogo. Tente recarregar a página.</p>}
               {categories.map(cat => (
                 <div key={cat} className="space-y-4">
                   <div className="flex items-center gap-2 px-2">
